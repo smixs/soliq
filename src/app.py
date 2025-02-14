@@ -31,14 +31,12 @@ def parse_receipt_html(html_content):
     # Находим все строки с товарами
     product_rows = soup.find_all('tr', class_='products-row')
     
-    current_item = None
-    
     for row in product_rows:
         # Получаем все td элементы в строке
         cells = row.find_all('td')
         
         # Базовые данные товара
-        current_item = {
+        item_data = {
             'Nomi': cells[0].text.strip(),
             'Soni': cells[1].text.strip(),
             'Narxi': cells[2].text.strip(),
@@ -50,12 +48,8 @@ def parse_receipt_html(html_content):
         }
         
         # Находим все следующие строки до следующего products-row
-        next_element = row.next_sibling
-        while next_element and not (hasattr(next_element, 'find_all') and next_element.find_all('td', {'class': 'price-sum'})):
-            if isinstance(next_element, str):
-                next_element = next_element.next_sibling
-                continue
-                
+        next_element = row.find_next_sibling('tr')
+        while next_element and 'products-row' not in next_element.get('class', []):
             if 'code-row' in next_element.get('class', []):
                 label_cell = next_element.find('td')
                 value_cell = next_element.find_all('td')[-1]
@@ -65,21 +59,19 @@ def parse_receipt_html(html_content):
                     value = value_cell.text.strip()
                     
                     if 'Chegirma' in label:
-                        current_item['Chegirma'] = value
+                        item_data['Chegirma'] = value
                     elif 'Shtrix kodi' in label:
-                        current_item['Shtrix kodi'] = value
+                        item_data['Shtrix kodi'] = value
                     elif 'MXIK kodi' in label:
-                        current_item['MXIK-kod'] = value
+                        item_data['MXIK-kod'] = value
                     elif 'MXIK nomi' in label:
-                        current_item['MXIK nomi'] = value
+                        item_data['MXIK nomi'] = value
                     elif 'Markirovka kodi' in label:
-                        current_item['Markirovka kodi'] = value
+                        item_data['Markirovka kodi'] = value
             
-            next_element = next_element.next_sibling
+            next_element = next_element.find_next_sibling('tr')
         
-        if current_item:
-            items_data.append(current_item)
-            current_item = None
+        items_data.append(item_data)
     
     # Создаем DataFrame
     df = pd.DataFrame(items_data)
