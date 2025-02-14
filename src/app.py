@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+import httpx
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
@@ -9,12 +9,30 @@ import sys
 
 # Определяем заголовки запроса как глобальную переменную
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
     'Cache-Control': 'max-age=0'
+}
+
+# Настройки клиента httpx
+CLIENT_SETTINGS = {
+    'timeout': 15.0,  # Общий таймаут
+    'follow_redirects': True,
+    'http2': True,
+    'verify': True,
+    'limits': httpx.Limits(
+        max_keepalive_connections=5,
+        max_connections=10,
+        keepalive_expiry=5
+    )
 }
 
 def get_check_number(url):
@@ -40,29 +58,36 @@ def get_check_number(url):
 
 def fetch_receipt_data(url):
     """
-    Получает данные чека по URL
+    Получает данные чека по URL используя httpx
     """
     try:
         st.write("Отправка запроса к", url)
-        response = requests.get(url, headers=HEADERS, timeout=30)  # Используем глобальные заголовки
-        st.write(f"Статус ответа: {response.status_code}")
-        st.write(f"Заголовки ответа: {dict(response.headers)}")
         
-        response.raise_for_status()
-        return response.text
-    except requests.Timeout:
-        st.error("Превышено время ожидания ответа от сервера (30 сек). Пожалуйста, попробуйте позже.")
+        # Создаем клиент с retry механизмом
+        transport = httpx.HTTPTransport(retries=3)
+        
+        with httpx.Client(transport=transport, **CLIENT_SETTINGS) as client:
+            response = client.get(url, headers=HEADERS)
+            
+            st.write(f"Статус ответа: {response.status_code}")
+            st.write(f"Заголовки ответа: {dict(response.headers)}")
+            
+            response.raise_for_status()
+            return response.text
+            
+    except httpx.TimeoutException:
+        st.error("Превышено время ожидания ответа от сервера (15 сек). Пожалуйста, попробуйте позже.")
         return None
-    except requests.ConnectionError as e:
+    except httpx.ConnectError as e:
         st.error(f"Не удалось подключиться к серверу. Ошибка: {str(e)}")
-        st.write("Детали ошибки подключения:", str(e.__context__))
+        st.write("Детали ошибки подключения:", str(e))
         return None
-    except requests.HTTPError as e:
+    except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             st.error("Чек не найден. Проверьте правильность ссылки.")
         else:
             st.error(f"Ошибка сервера: {e.response.status_code}")
-            st.write("Тело ответа:", e.response.text[:500])  # Показываем первые 500 символов ответа
+            st.write("Тело ответа:", e.response.text[:500])
         return None
     except Exception as e:
         st.error(f"Произошла непредвиденная ошибка: {str(e)}")
@@ -161,7 +186,7 @@ def main():
     with st.expander("Отладочная информация"):
         st.write("Python версия:", sys.version)
         st.write("Streamlit версия:", st.__version__)
-        st.write("Requests версия:", requests.__version__)
+        st.write("httpx версия:", httpx.__version__)
         st.write("User Agent:", HEADERS['User-Agent'])  # Используем глобальные заголовки
     
     # Центрируем заголовок и подпись
