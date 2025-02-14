@@ -148,7 +148,7 @@ def main():
     )
     
     st.title("🧾 Soliq Checkmate")
-    st.markdown("<p style='font-size: 8px; margin-top: -15px;'>made with 🩵 by <a href='https://tdigroup.uz'>tdigroup.uz</a></p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 11px; margin-top: -15px; color: #9DB2BF;'>made with 🩵 by <a href='https://tdigroup.uz' style='color: #9DB2BF;'>tdigroup.uz</a></p>", unsafe_allow_html=True)
     
     # Добавляем описание
     st.markdown("""
@@ -159,65 +159,69 @@ def main():
     4. Скачайте в формате Excel
     """)
     
-    # Поле для ввода URL
-    receipt_url = st.text_input(
-        "Введите URL фискального чека:",
-        placeholder="https://ofd.soliq.uz/check?t=..."
-    )
+    # Создаем три колонки для центрирования
+    left_col, center_col, right_col = st.columns([1, 2, 1])
     
-    if st.button("Получить данные", type="primary"):
-        if not receipt_url:
-            st.warning("Пожалуйста, введите URL чека")
-            return
+    # Поле для ввода URL в центральной колонке
+    with center_col:
+        receipt_url = st.text_input(
+            "Введите URL фискального чека:",
+            placeholder="https://ofd.soliq.uz/check?t=..."
+        )
+        
+        if st.button("Получить данные", type="primary"):
+            if not receipt_url:
+                st.warning("Пожалуйста, введите URL чека")
+                return
             
-        if not receipt_url.startswith("https://ofd.soliq.uz/check"):
-            st.error("Неверный формат ссылки. Ссылка должна начинаться с 'https://ofd.soliq.uz/check'")
-            return
+            if not receipt_url.startswith("https://ofd.soliq.uz/check"):
+                st.error("Неверный формат ссылки. Ссылка должна начинаться с 'https://ofd.soliq.uz/check'")
+                return
             
-        with st.spinner("Загрузка данных..."):
-            html_content = fetch_receipt_data(receipt_url)
-            
-            if html_content:
-                df = parse_receipt_html(html_content)
+            with st.spinner("Загрузка данных..."):
+                html_content = fetch_receipt_data(receipt_url)
                 
-                if df is not None and not df.empty:
-                    st.success("Данные успешно получены!")
+                if html_content:
+                    df = parse_receipt_html(html_content)
                     
-                    # Отображаем таблицу
-                    st.dataframe(
-                        df,
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    
-                    # Получаем номер чека для имени файла
-                    check_number = get_check_number(receipt_url)
-                    
-                    # Создаем Excel файл в памяти
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Чек')
-                        workbook = writer.book
-                        worksheet = writer.sheets['Чек']
+                    if df is not None and not df.empty:
+                        st.success("Данные успешно получены!")
                         
-                        # Автоматически подгоняем ширину столбцов
-                        for i, col in enumerate(df.columns):
-                            max_length = max(
-                                df[col].astype(str).apply(len).max(),
-                                len(col)
-                            ) + 2
-                            worksheet.set_column(i, i, max_length)
-                    
-                    output.seek(0)
-                    
-                    st.download_button(
-                        label="💾 Скачать Excel",
-                        data=output,
-                        file_name=f"check_{check_number}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                else:
-                    st.error("Не удалось найти данные в чеке. Проверьте правильность ссылки.")
+                        # Отображаем таблицу
+                        st.dataframe(
+                            df,
+                            hide_index=True,
+                            use_container_width=True
+                        )
+                        
+                        # Получаем номер чека для имени файла
+                        check_number = get_check_number(receipt_url)
+                        
+                        # Создаем Excel файл в памяти
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            df.to_excel(writer, index=False, sheet_name='Чек')
+                            workbook = writer.book
+                            worksheet = writer.sheets['Чек']
+                            
+                            # Автоматически подгоняем ширину столбцов
+                            for i, col in enumerate(df.columns):
+                                max_length = max(
+                                    df[col].astype(str).apply(len).max(),
+                                    len(col)
+                                ) + 2
+                                worksheet.set_column(i, i, max_length)
+                        
+                        output.seek(0)
+                        
+                        st.download_button(
+                            label="💾 Скачать Excel",
+                            data=output,
+                            file_name=f"check_{check_number}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    else:
+                        st.error("Не удалось найти данные в чеке. Проверьте правильность ссылки.")
 
 if __name__ == "__main__":
     main() 
