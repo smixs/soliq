@@ -5,6 +5,17 @@ import pandas as pd
 import re
 from urllib.parse import parse_qs, urlparse
 from io import BytesIO
+import sys
+
+# Определяем заголовки запроса как глобальную переменную
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Cache-Control': 'max-age=0'
+}
 
 def get_check_number(url):
     """
@@ -31,33 +42,32 @@ def fetch_receipt_data(url):
     """
     Получает данные чека по URL
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0'
-    }
-    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        st.write("Отправка запроса к", url)
+        response = requests.get(url, headers=HEADERS, timeout=30)  # Используем глобальные заголовки
+        st.write(f"Статус ответа: {response.status_code}")
+        st.write(f"Заголовки ответа: {dict(response.headers)}")
+        
         response.raise_for_status()
         return response.text
     except requests.Timeout:
-        st.error("Превышено время ожидания ответа от сервера. Пожалуйста, попробуйте позже.")
+        st.error("Превышено время ожидания ответа от сервера (30 сек). Пожалуйста, попробуйте позже.")
         return None
-    except requests.ConnectionError:
-        st.error("Не удалось подключиться к серверу. Проверьте подключение к интернету или попробуйте позже.")
+    except requests.ConnectionError as e:
+        st.error(f"Не удалось подключиться к серверу. Ошибка: {str(e)}")
+        st.write("Детали ошибки подключения:", str(e.__context__))
         return None
     except requests.HTTPError as e:
         if e.response.status_code == 404:
             st.error("Чек не найден. Проверьте правильность ссылки.")
         else:
-            st.error(f"Ошибка сервера: {e.response.status_code}. Пожалуйста, попробуйте позже.")
+            st.error(f"Ошибка сервера: {e.response.status_code}")
+            st.write("Тело ответа:", e.response.text[:500])  # Показываем первые 500 символов ответа
         return None
     except Exception as e:
         st.error(f"Произошла непредвиденная ошибка: {str(e)}")
+        st.write("Тип ошибки:", type(e).__name__)
+        st.write("Детали ошибки:", str(e))
         return None
 
 def parse_receipt_html(html_content):
@@ -146,6 +156,13 @@ def main():
         layout="wide",
         initial_sidebar_state="collapsed"
     )
+    
+    # Показываем информацию о среде выполнения (только при отладке)
+    with st.expander("Отладочная информация"):
+        st.write("Python версия:", sys.version)
+        st.write("Streamlit версия:", st.__version__)
+        st.write("Requests версия:", requests.__version__)
+        st.write("User Agent:", HEADERS['User-Agent'])  # Используем глобальные заголовки
     
     # Центрируем заголовок и подпись
     st.markdown("<h1 style='text-align: center;'>🧾 Soliq Checkmate</h1>", unsafe_allow_html=True)
