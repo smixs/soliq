@@ -62,7 +62,7 @@ def parse_receipt_html(html_content):
         item_data = {
             'Nomi': cells[0].text.strip(),
             'Soni': cells[1].text.strip(),
-            'Narxi': cells[2].text.strip(),
+            'Narxi': cells[2].text.strip().replace(',', ''),  # Удаляем запятые из чисел
             'Chegirma': '',
             'Shtrix kodi': '',
             'MXIK-kod': '',
@@ -84,9 +84,13 @@ def parse_receipt_html(html_content):
                     if 'Chegirma' in label:
                         item_data['Chegirma'] = value
                     elif 'Shtrix kodi' in label:
-                        item_data['Shtrix kodi'] = value
+                        # Очищаем штрих-код от всех символов кроме цифр
+                        cleaned_value = ''.join(filter(str.isdigit, value))
+                        item_data['Shtrix kodi'] = cleaned_value
                     elif 'MXIK kodi' in label:
-                        item_data['MXIK-kod'] = value
+                        # Очищаем MXIK-код от всех символов кроме цифр
+                        cleaned_value = ''.join(filter(str.isdigit, value))
+                        item_data['MXIK-kod'] = cleaned_value
                     elif 'MXIK nomi' in label:
                         item_data['MXIK nomi'] = value
                     elif 'Markirovka kodi' in label:
@@ -102,6 +106,15 @@ def parse_receipt_html(html_content):
     # Очищаем значения от лишних пробелов
     for col in df.columns:
         df[col] = df[col].str.strip()
+    
+    # Преобразуем типы данных
+    df['Soni'] = pd.to_numeric(df['Soni'], errors='coerce')
+    df['Narxi'] = pd.to_numeric(df['Narxi'], errors='coerce')
+    df['Shtrix kodi'] = pd.to_numeric(df['Shtrix kodi'], errors='coerce')
+    df['MXIK-kod'] = pd.to_numeric(df['MXIK-kod'], errors='coerce')
+    
+    # Форматируем числовые колонки
+    df['Narxi'] = df['Narxi'].round(2)  # Округляем до 2 знаков после запятой
     
     return df
 
