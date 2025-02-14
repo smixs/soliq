@@ -3,6 +3,29 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
+from urllib.parse import parse_qs, urlparse
+from io import BytesIO
+
+def get_check_number(url):
+    """
+    Извлекает номер чека из URL
+    """
+    parsed_url = urlparse(url)
+    params = parse_qs(parsed_url.query)
+    
+    # Собираем параметры чека
+    check_parts = []
+    if 't' in params:
+        check_parts.append(params['t'][0])
+    if 'r' in params:
+        check_parts.append(params['r'][0])
+    if 'c' in params:
+        check_parts.append(params['c'][0])
+    
+    # Если параметры найдены, создаем имя файла, иначе используем дефолтное
+    if check_parts:
+        return '_'.join(check_parts)
+    return 'receipt'
 
 def fetch_receipt_data(url):
     """
@@ -92,11 +115,8 @@ def main():
     ### Как использовать:
     1. Вставьте ссылку на онлайн фискальный чек в поле ввода.
     2. Нажмите «Получить данные».
-    3. Просмотрите результаты и скачайте их в формате CSV.
-    4. Откройте Excel, перейдите во вкладку «Данные», выберите «Получить данные» → «Из файла» → «Из текста (CSV)».
-    5. Укажите загруженный CSV-файл — и таблица готова!
-    
-    *Solic Checkmate экономит ваше время и превращает фискальные чеки в удобные таблицы за пару кликов.*
+    3. Просмотрите результаты и скачайте их в формате Excel.
+    4. Откройте скачанный файл — и таблица готова!
     """)
     
     # Поле для ввода URL
@@ -119,13 +139,34 @@ def main():
                         # Отображаем таблицу
                         st.dataframe(df)
                         
-                        # Кнопка для скачивания CSV
-                        csv = df.to_csv(index=False).encode('utf-8')
+                        # Получаем номер чека для имени файла
+                        check_number = get_check_number(receipt_url)
+                        
+                        # Создаем Excel файл в памяти
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            df.to_excel(writer, index=False, sheet_name='Чек')
+                            # Получаем workbook и worksheet
+                            workbook = writer.book
+                            worksheet = writer.sheets['Чек']
+                            
+                            # Автоматически подгоняем ширину столбцов
+                            for i, col in enumerate(df.columns):
+                                max_length = max(
+                                    df[col].astype(str).apply(len).max(),
+                                    len(col)
+                                ) + 2
+                                worksheet.set_column(i, i, max_length)
+                        
+                        # Подготавливаем файл для скачивания
+                        output.seek(0)
+                        
+                        # Кнопка для скачивания Excel
                         st.download_button(
-                            label="Скачать данные (CSV)",
-                            data=csv,
-                            file_name="receipt_data.csv",
-                            mime="text/csv"
+                            label="Скачать данные (Excel)",
+                            data=output,
+                            file_name=f"check_{check_number}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                     else:
                         st.error("Не удалось найти данные в чеке")
