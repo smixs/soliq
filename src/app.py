@@ -61,38 +61,28 @@ def fetch_receipt_data(url):
     Получает данные чека по URL используя httpx
     """
     try:
-        st.write("Отправка запроса к", url)
-        
         # Создаем клиент с retry механизмом
         transport = httpx.HTTPTransport(retries=3)
         
         with httpx.Client(transport=transport, **CLIENT_SETTINGS) as client:
             response = client.get(url, headers=HEADERS)
-            
-            st.write(f"Статус ответа: {response.status_code}")
-            st.write(f"Заголовки ответа: {dict(response.headers)}")
-            
             response.raise_for_status()
             return response.text
             
     except httpx.TimeoutException:
         st.error("Превышено время ожидания ответа от сервера (15 сек). Пожалуйста, попробуйте позже.")
         return None
-    except httpx.ConnectError as e:
-        st.error(f"Не удалось подключиться к серверу. Ошибка: {str(e)}")
-        st.write("Детали ошибки подключения:", str(e))
+    except httpx.ConnectError:
+        st.error("Не удалось подключиться к серверу. Проверьте подключение к интернету.")
         return None
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             st.error("Чек не найден. Проверьте правильность ссылки.")
         else:
-            st.error(f"Ошибка сервера: {e.response.status_code}")
-            st.write("Тело ответа:", e.response.text[:500])
+            st.error("Ошибка сервера. Пожалуйста, попробуйте позже.")
         return None
-    except Exception as e:
-        st.error(f"Произошла непредвиденная ошибка: {str(e)}")
-        st.write("Тип ошибки:", type(e).__name__)
-        st.write("Детали ошибки:", str(e))
+    except Exception:
+        st.error("Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.")
         return None
 
 def parse_receipt_html(html_content):
@@ -182,16 +172,9 @@ def main():
         initial_sidebar_state="collapsed"
     )
     
-    # Показываем информацию о среде выполнения (только при отладке)
-    with st.expander("Отладочная информация"):
-        st.write("Python версия:", sys.version)
-        st.write("Streamlit версия:", st.__version__)
-        st.write("httpx версия:", httpx.__version__)
-        st.write("User Agent:", HEADERS['User-Agent'])  # Используем глобальные заголовки
-    
     # Центрируем заголовок и подпись
     st.markdown("<h1 style='text-align: center;'>🧾 Soliq Checkmate</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 11px; margin-top: -15px; color: #9DB2BF;'>made with 🩵 by <a href='https://tdigroup.uz' style='color: #9DB2BF;'>tdigroup.uz</a></p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 11px; margin-top: -15px; color: #666666;'>made with 🩵 by <a href='https://tdigroup.uz' style='color: #666666;'>tdigroup.uz</a></p>", unsafe_allow_html=True)
     
     # Добавляем описание (центрированное)
     st.markdown("""
