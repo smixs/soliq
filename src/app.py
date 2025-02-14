@@ -147,29 +147,43 @@ def main():
         initial_sidebar_state="collapsed"
     )
     
-    st.title("🧾 Soliq Checkmate")
-    st.markdown("<p style='font-size: 11px; margin-top: -15px; color: #9DB2BF;'>made with 🩵 by <a href='https://tdigroup.uz' style='color: #9DB2BF;'>tdigroup.uz</a></p>", unsafe_allow_html=True)
+    # Центрируем заголовок и подпись
+    st.markdown("<h1 style='text-align: center;'>🧾 Soliq Checkmate</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 11px; margin-top: -15px; color: #9DB2BF;'>made with 🩵 by <a href='https://tdigroup.uz' style='color: #9DB2BF;'>tdigroup.uz</a></p>", unsafe_allow_html=True)
     
-    # Добавляем описание
+    # Добавляем описание (центрированное)
     st.markdown("""
-    ### Как использовать:
-    1. Вставьте ссылку на онлайн фискальный чек
-    2. Нажмите «Получить данные»
-    3. Просмотрите результаты
+    <div style='text-align: center;'>
+    <h3>Как использовать:</h3>
+    1. Вставьте ссылку на онлайн фискальный чек<br>
+    2. Нажмите «Получить данные»<br>
+    3. Просмотрите результаты<br>
     4. Скачайте в формате Excel
-    """)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Добавляем отступ перед полем ввода
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # Создаем три колонки для центрирования
     left_col, center_col, right_col = st.columns([1, 2, 1])
     
     # Поле для ввода URL в центральной колонке
     with center_col:
+        # Центрируем label для поля ввода
+        st.markdown("<p style='text-align: center;'>Введите URL фискального чека:</p>", unsafe_allow_html=True)
         receipt_url = st.text_input(
-            "Введите URL фискального чека:",
-            placeholder="https://ofd.soliq.uz/check?t=..."
+            "",  # Убираем label, так как он уже добавлен выше
+            placeholder="https://ofd.soliq.uz/check?t=...",
+            label_visibility="collapsed"  # Скрываем пустой label
         )
         
-        if st.button("Получить данные", type="primary"):
+        # Центрируем кнопку
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            submit_button = st.button("Получить данные", type="primary", use_container_width=True)
+        
+        if submit_button:
             if not receipt_url:
                 st.warning("Пожалуйста, введите URL чека")
                 return
