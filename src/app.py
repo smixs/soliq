@@ -31,12 +31,33 @@ def fetch_receipt_data(url):
     """
     Получает данные чека по URL
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
+    }
+    
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         return response.text
-    except requests.RequestException as e:
-        st.error(f"Ошибка при получении данных: {str(e)}")
+    except requests.Timeout:
+        st.error("Превышено время ожидания ответа от сервера. Пожалуйста, попробуйте позже.")
+        return None
+    except requests.ConnectionError:
+        st.error("Не удалось подключиться к серверу. Проверьте подключение к интернету или попробуйте позже.")
+        return None
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            st.error("Чек не найден. Проверьте правильность ссылки.")
+        else:
+            st.error(f"Ошибка сервера: {e.response.status_code}. Пожалуйста, попробуйте позже.")
+        return None
+    except Exception as e:
+        st.error(f"Произошла непредвиденная ошибка: {str(e)}")
         return None
 
 def parse_receipt_html(html_content):
@@ -119,6 +140,13 @@ def parse_receipt_html(html_content):
     return df
 
 def main():
+    st.set_page_config(
+        page_title="Soliq Checkmate",
+        page_icon="🧾",
+        layout="wide",
+        initial_sidebar_state="collapsed"
+    )
+    
     st.title("🧾 Soliq Checkmate")
     st.markdown("<p style='font-size: 8px; margin-top: -15px;'>made with 🩵 by <a href='https://tdigroup.uz'>tdigroup.uz</a></p>", unsafe_allow_html=True)
     
@@ -132,58 +160,64 @@ def main():
     """)
     
     # Поле для ввода URL
-    receipt_url = st.text_input("Введите URL фискального чека:", 
-                               placeholder="https://ofd.soliq.uz/check?t=...")
+    receipt_url = st.text_input(
+        "Введите URL фискального чека:",
+        placeholder="https://ofd.soliq.uz/check?t=..."
+    )
     
-    if st.button("Получить данные"):
-        if receipt_url:
-            with st.spinner("Загрузка данных..."):
-                # Получаем HTML-контент
-                html_content = fetch_receipt_data(receipt_url)
-                
-                if html_content:
-                    # Парсим данные
-                    df = parse_receipt_html(html_content)
-                    
-                    if df is not None and not df.empty:
-                        st.success("Данные успешно получены!")
-                        
-                        # Отображаем таблицу
-                        st.dataframe(df)
-                        
-                        # Получаем номер чека для имени файла
-                        check_number = get_check_number(receipt_url)
-                        
-                        # Создаем Excel файл в памяти
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            df.to_excel(writer, index=False, sheet_name='Чек')
-                            # Получаем workbook и worksheet
-                            workbook = writer.book
-                            worksheet = writer.sheets['Чек']
-                            
-                            # Автоматически подгоняем ширину столбцов
-                            for i, col in enumerate(df.columns):
-                                max_length = max(
-                                    df[col].astype(str).apply(len).max(),
-                                    len(col)
-                                ) + 2
-                                worksheet.set_column(i, i, max_length)
-                        
-                        # Подготавливаем файл для скачивания
-                        output.seek(0)
-                        
-                        # Кнопка для скачивания Excel
-                        st.download_button(
-                            label="Скачать данные (Excel)",
-                            data=output,
-                            file_name=f"check_{check_number}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                    else:
-                        st.error("Не удалось найти данные в чеке")
-        else:
+    if st.button("Получить данные", type="primary"):
+        if not receipt_url:
             st.warning("Пожалуйста, введите URL чека")
+            return
+            
+        if not receipt_url.startswith("https://ofd.soliq.uz/check"):
+            st.error("Неверный формат ссылки. Ссылка должна начинаться с 'https://ofd.soliq.uz/check'")
+            return
+            
+        with st.spinner("Загрузка данных..."):
+            html_content = fetch_receipt_data(receipt_url)
+            
+            if html_content:
+                df = parse_receipt_html(html_content)
+                
+                if df is not None and not df.empty:
+                    st.success("Данные успешно получены!")
+                    
+                    # Отображаем таблицу
+                    st.dataframe(
+                        df,
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                    
+                    # Получаем номер чека для имени файла
+                    check_number = get_check_number(receipt_url)
+                    
+                    # Создаем Excel файл в памяти
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Чек')
+                        workbook = writer.book
+                        worksheet = writer.sheets['Чек']
+                        
+                        # Автоматически подгоняем ширину столбцов
+                        for i, col in enumerate(df.columns):
+                            max_length = max(
+                                df[col].astype(str).apply(len).max(),
+                                len(col)
+                            ) + 2
+                            worksheet.set_column(i, i, max_length)
+                    
+                    output.seek(0)
+                    
+                    st.download_button(
+                        label="💾 Скачать Excel",
+                        data=output,
+                        file_name=f"check_{check_number}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                else:
+                    st.error("Не удалось найти данные в чеке. Проверьте правильность ссылки.")
 
 if __name__ == "__main__":
     main() 
